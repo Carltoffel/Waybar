@@ -5,6 +5,7 @@
 #include <glibmm/refptr.h>
 #include <json/json.h>
 
+#include <string>
 #include <tuple>
 
 #include "bar.hpp"
@@ -25,7 +26,14 @@ class Host {
 
   void reorderItems();
 
+  // Resolves the order value for an item key from the "order" / "orders"
+  // config options. Items covered by neither get 0 and are sorted
+  // alphabetically among themselves.
+  int resolveOrder(const std::string& key) const;
+
  private:
+  static std::string toLowerAscii(std::string s);
+
   void busAcquired(const Glib::RefPtr<Gio::DBus::Connection>&, const Glib::ustring&);
   void nameAppeared(const Glib::RefPtr<Gio::DBus::Connection>&, const Glib::ustring&,
                     const Glib::ustring&);
@@ -61,6 +69,9 @@ class Host {
   // signals); it only reorders existing children.
   const std::function<void()> on_reorder_;
 
+  // Positions derived from the "order" list, keys lowercased.
+  ItemOrderMap order_;
+  // Deprecated "orders" object, matched case-sensitively as it always was.
   ItemOrderMap orders_;
   const std::function<void()> on_update_;
 };

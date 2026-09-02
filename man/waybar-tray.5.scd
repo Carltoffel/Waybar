@@ -49,18 +49,24 @@ Addressed by *tray*
 		- *string*: Custom icon name or path to icon file ++
 		- *false*: Hide this application's tray icon completely
 
+*order*: ++
+	typeof: array ++
+	Item keys in the order they should appear, left to right (top to bottom
+	on a vertical bar). The special entry *"\*"* stands for every item not
+	named in the list; those are placed there in alphabetical order. A list
+	without a *"\*"* behaves as if one were appended, so the named items
+	come first and the rest follow. Keys are matched case-insensitively.
+
 *orders*: ++
 	typeof: object ++
-	Explicit order values for items in the tray. ++
-	Key: name of item. ++
-	Value: integer, higher value means to place this item to the right. ++
-	Items without an entry default to 0, so a negative value places an item
-	left of all unconfigured ones and a positive value places it right of
-	them.
+	*Deprecated*, use *order*. Maps an item key to an integer, where a
+	higher value places the item further to the right. Still honoured, and
+	takes precedence over *order* so that an existing config keeps working
+	while it is migrated.
 
 # ITEM KEYS AND DEFAULT ORDER
 
-An item is addressed by its key in *orders* and *icons*. The key is the
+An item is addressed by its key in *order* and *icons*. The key is the
 item's SNI *Id*, except for Chrome-based applications, whose *Id* is not
 unique -- those are addressed by their tooltip text, lowercased.
 
@@ -74,11 +80,10 @@ item it registers on startup:
 
 Run waybar from a terminal to see them.
 
-Items that no entry in *orders* applies to are placed in alphabetical
-order of their key, after those with a negative order value and before
-those with a positive one. Ordering therefore does not depend on the
-order in which applications register on D-Bus, which is racy and differs
-between restarts and between outputs of the same bar.
+Items not named in *order* are placed where its *"\*"* entry sits, in
+alphabetical order of their key. Ordering therefore does not depend on
+the order in which applications register on D-Bus, which is racy and
+differs between restarts and between outputs of the same bar.
 
 Note: custom *icons* only work with actual image files, not font-based icons. They
 might not work for some Electron apps (see https://github.com/electron/electron/issues/40936).
@@ -98,9 +103,7 @@ might not work for some Electron apps (see https://github.com/electron/electron/
 		"TelegramDesktop": "$HOME/.local/share/icons/hicolor/16x16/apps/telegram.png",
 		"spotify": false
 	},
-	"orders": {
-		"wechat": 99
-	}
+	"order": ["gammastep", "*", "TelegramDesktop", "nm-applet"]
 }
 
 ```

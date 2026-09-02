@@ -3,6 +3,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cctype>
 
 #include "modules/sni/item.hpp"
 #include "util/scope_guard.hpp"
@@ -29,16 +30,71 @@ Host::Host(std::size_t id, const Json::Value& config, const Bar& bar,
       on_remove_(on_remove),
       on_reorder_(on_reorder),
       on_update_(on_update) {
-  auto orders = config["orders"];
-  if (!orders.isNull()) {
-    for (auto itr = orders.begin(); itr != orders.end(); ++itr) {
-      auto key = itr.name();
-      auto& value = *itr;
-      assert(value.isInt());
-
-      orders_[key] = value.asInt();
+  const auto& order = config["order"];
+  if (order.isArray()) {
+    // Entries before the "*" placeholder get negative order values, entries
+    // after it positive ones, both in list order. Everything not named in the
+    // list stays at 0 and lands where the placeholder sits. A list without a
+    // "*" behaves as if one were appended: named items first, the rest after.
+    Json::ArrayIndex wildcard = order.size();
+    for (Json::ArrayIndex i = 0; i < order.size(); ++i) {
+      if (order[i].isString() && order[i].asString() == "*") {
+        wildcard = i;
+        break;
+      }
     }
+    for (Json::ArrayIndex i = 0; i < order.size(); ++i) {
+      if (i == wildcard) {
+        continue;
+      }
+      if (!order[i].isString()) {
+        spdlog::warn("tray: ignoring entry {} of 'order': expected a string", i);
+        continue;
+      }
+      auto key = toLowerAscii(order[i].asString());
+      if (key == "*") {
+        spdlog::warn("tray: ignoring entry {} of 'order': only the first '*' is used", i);
+        continue;
+      }
+      order_[key] = static_cast<int>(i) - static_cast<int>(wildcard);
+    }
+  } else if (!order.isNull()) {
+    spdlog::warn("tray: ignoring 'order': expected an array");
   }
+
+  const auto& orders = config["orders"];
+  if (orders.isObject()) {
+    spdlog::warn("tray: 'orders' is deprecated and will be removed, use 'order' instead");
+    for (auto itr = orders.begin(); itr != orders.end(); ++itr) {
+      const auto& value = *itr;
+      if (!value.isInt()) {
+        spdlog::warn("tray: ignoring order for '{}': expected an integer", itr.name());
+        continue;
+      }
+      orders_[itr.name()] = value.asInt();
+    }
+  } else if (!orders.isNull()) {
+    spdlog::warn("tray: ignoring 'orders': expected an object");
+  }
+}
+
+std::string Host::toLowerAscii(std::string s) {
+  for (auto& ch : s) {
+    ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+  }
+  return s;
+}
+
+int Host::resolveOrder(const std::string& key) const {
+  // The deprecated option wins so that an existing config keeps behaving the
+  // way it did while it is being migrated.
+  if (auto it = orders_.find(key); it != orders_.end()) {
+    return it->second;
+  }
+  if (auto it = order_.find(toLowerAscii(key)); it != order_.end()) {
+    return it->second;
+  }
+  return 0;
 }
 
 Host::~Host() {
@@ -288,7 +344,7 @@ void Host::addRegisteredItem(const std::string& service) {
     spdlog::debug("Adding SNI item: {}", bus_name);
     items_.emplace_back(std::make_unique<Item>(
         bus_name, object_path, config_, bar_, [this](Item& item) { itemReady(item); },
-        [this](Item& item) { itemInvalidated(item); }, on_update_, *this, orders_));
+        [this](Item& item) { itemInvalidated(item); }, on_update_, *this));
   }
 }
 

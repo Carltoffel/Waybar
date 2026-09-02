@@ -15,6 +15,7 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 
 #include "bar.hpp"
 
@@ -33,7 +34,7 @@ class Item : public sigc::trackable {
  public:
   Item(const std::string&, const std::string&, const Json::Value&, const Bar&,
        const std::function<void(Item&)>&, const std::function<void(Item&)>&,
-       const std::function<void()>&, Host&, const ItemOrderMap&);
+       const std::function<void()>&, Host&);
   ~Item();
 
   bool isReady() const;
@@ -73,7 +74,10 @@ class Item : public sigc::trackable {
    * while compliant SNI implementation would always reset the flag to desired value.
    */
   bool item_is_menu = true;
-  int order_ = -1;  // -1 means not set
+  // Resolved from the tray config; negative values are ordinary, so a
+  // sentinel value cannot mark "not resolved yet".
+  int order_ = 0;
+  bool order_resolved_ = false;
 
  private:
   void onConfigure(GdkEventConfigure* ev);
@@ -127,7 +131,6 @@ class Item : public sigc::trackable {
   std::set<std::string_view> update_pending_;
 
   Host& host_;
-  const ItemOrderMap& orders_;
 };
 
 }  // namespace waybar::modules::SNI

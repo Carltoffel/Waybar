@@ -44,7 +44,7 @@ static const unsigned UPDATE_DEBOUNCE_TIME = 10;
 Item::Item(const std::string& bn, const std::string& op, const Json::Value& config, const Bar& bar,
            const std::function<void(Item&)>& on_ready,
            const std::function<void(Item&)>& on_invalidate, const std::function<void()>& on_updated,
-           Host& host, const ItemOrderMap& orders)
+           Host& host)
     : bus_name(bn),
       object_path(op),
       icon_size(16),
@@ -54,8 +54,7 @@ Item::Item(const std::string& bn, const std::string& op, const Json::Value& conf
       on_ready_(on_ready),
       on_invalidate_(on_invalidate),
       on_updated_(on_updated),
-      host_(host),
-      orders_(orders) {
+      host_(host) {
   if (config["icon-size"].isUInt()) {
     icon_size = config["icon-size"].asUInt();
   }
@@ -310,14 +309,10 @@ void Item::invalidate() {
 void Item::setCustomIcon(const std::string& id) {
   spdlog::debug("SNI tray id: {}", id);
 
-  if (order_ == -1) {
-    auto iter = orders_.find(id);
-    if (iter != orders_.end()) {
-      order_ = iter->second;
-      spdlog::debug("reordering tray item {}, order: {}", id, order_);
-    } else {
-      order_ = 0;
-    }
+  if (!order_resolved_) {
+    order_resolved_ = true;
+    order_ = host_.resolveOrder(id);
+    spdlog::debug("reordering tray item {}, order: {}", id, order_);
     host_.reorderItems();
   }
 
