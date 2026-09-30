@@ -25,6 +25,10 @@ Addressed by *tray*
 	typeof: array ++
 	Ids of tray items whose icon is painted in the text colour, keeping its alpha. Meant for apps that ship a single-colour icon whose colour does not follow the bar's style. Strongly red pixels (an unread badge) are kept.
 
+*force-symbolic*: ++
+	typeof: array ++
+	Ids of tray items whose icon names are looked up as *<name>-symbolic* first, falling back to the plain icon when the theme has none. Symbolic icons are painted in the text colour, and unlike a custom icon from *icons* this keeps the item's changing states.
+
 *hide-badges*: ++
 	typeof: array ++
 	Ids of tray items whose unread badge is not shown. Items with a custom icon from *icons* get the red badge of the app's own icon drawn on top as a dot; for items in this list that dot is left out, and *recolor* paints their red pixels too. Useful with a do-not-disturb mode.

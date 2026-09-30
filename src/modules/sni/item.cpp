@@ -66,7 +66,8 @@ Item::Item(const std::string& bn, const std::string& op, const Json::Value& conf
     show_passive_ = config["show-passive-items"].asBool();
   }
   for (const auto& [key, ids] : {std::pair{"recolor", &recolor_ids_},
-                                 std::pair{"hide-badges", &hide_badge_ids_}}) {
+                                 std::pair{"hide-badges", &hide_badge_ids_},
+                                 std::pair{"force-symbolic", &symbolic_ids_}}) {
     if (config[key].isArray()) {
       for (const auto& item_id : config[key]) {
         if (item_id.isString()) {
@@ -591,16 +592,20 @@ Glib::RefPtr<Gdk::Pixbuf> Item::overlayPixbufs(const Glib::RefPtr<Gdk::Pixbuf>& 
 }
 
 Glib::RefPtr<Gdk::Pixbuf> Item::getIconByName(const std::string& name, int request_size) {
+  auto flags = Gtk::IconLookupFlags::ICON_LOOKUP_FORCE_SIZE;
+  // Prefer "<name>-symbolic", falling back to the plain icon when the theme
+  // has none; symbolic icons are painted in the text colour.
+  if (symbolic_ids_.count(id) > 0) {
+    flags |= Gtk::IconLookupFlags::ICON_LOOKUP_FORCE_SYMBOLIC;
+  }
   if (!icon_theme_path.empty()) {
-    auto icon_info = icon_theme->lookup_icon(name.c_str(), request_size,
-                                             Gtk::IconLookupFlags::ICON_LOOKUP_FORCE_SIZE);
+    auto icon_info = icon_theme->lookup_icon(name.c_str(), request_size, flags);
     if (icon_info) {
       bool is_sym = false;
       return icon_info.load_symbolic(event_box.get_style_context(), is_sym);
     }
   }
-  return DefaultGtkIconThemeWrapper::load_icon(name.c_str(), request_size,
-                                               Gtk::IconLookupFlags::ICON_LOOKUP_FORCE_SIZE,
+  return DefaultGtkIconThemeWrapper::load_icon(name.c_str(), request_size, flags,
                                                event_box.get_style_context());
 }
 

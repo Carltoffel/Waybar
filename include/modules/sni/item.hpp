@@ -122,6 +122,8 @@ class Item : public sigc::trackable {
   std::set<std::string> recolor_ids_;
   // item ids whose unread badge is not shown (config "hide-badges")
   std::set<std::string> hide_badge_ids_;
+  // item ids whose named icons are looked up as symbolic (config "force-symbolic")
+  std::set<std::string> symbolic_ids_;
   // the pixmap the app sent, kept even when a custom icon replaces it, so its
   // unread badge can still be shown on top of the custom icon
   Glib::RefPtr<Gdk::Pixbuf> app_icon_pixmap_;
