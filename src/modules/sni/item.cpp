@@ -6,6 +6,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cassert>
 #include <filesystem>
 #include <fstream>
@@ -64,9 +65,24 @@ Item::Item(const std::string& bn, const std::string& op, const Json::Value& conf
   if (config["show-passive-items"].isBool()) {
     show_passive_ = config["show-passive-items"].asBool();
   }
+  for (const auto& [key, ids] : {std::pair{"recolor", &recolor_ids_},
+                                 std::pair{"hide-badges", &hide_badge_ids_}}) {
+    if (config[key].isArray()) {
+      for (const auto& item_id : config[key]) {
+        if (item_id.isString()) {
+          ids->insert(item_id.asString());
+        }
+      }
+    }
+  }
 
   auto& window = const_cast<Bar&>(bar).window;
   window.signal_configure_event().connect_notify(sigc::mem_fun(*this, &Item::onConfigure));
+  // Symbolic icons take their colour from the style context when they are
+  // loaded. Reload them when the style changes (e.g. the switch to
+  // style-light.css on a colour scheme change), or they keep the old colour
+  // until the item happens to send a new icon.
+  event_box.signal_style_updated().connect(sigc::mem_fun(*this, &Item::updateImage));
   event_box.add(image);
   event_box.add_events(Gdk::BUTTON_PRESS_MASK | Gdk::SCROLL_MASK | Gdk::SMOOTH_SCROLL_MASK);
   event_box.signal_button_press_event().connect(sigc::mem_fun(*this, &Item::handleClick));
@@ -232,10 +248,11 @@ void Item::setProperty(const Glib::ustring& name, Glib::VariantBase& value) {
         icon_name = get_variant<std::string>(value);
       }
     } else if (name == "IconPixmap") {
+      app_icon_pixmap_ = this->extractPixBuf(value.gobj());
       if (has_custom_icon_) {
         spdlog::trace("Item '{}': ignoring IconPixmap update, custom icon is set", id);
       } else {
-        icon_pixmap = this->extractPixBuf(value.gobj());
+        icon_pixmap = app_icon_pixmap_;
       }
     } else if (name == "OverlayIconName") {
       overlay_icon_name = get_variant<std::string>(value);
@@ -464,6 +481,14 @@ void Item::updateImage() {
 
   pixbuf = overlayPixbufs(pixbuf, getOverlayIconPixbuf());
 
+  const bool show_badge = hide_badge_ids_.count(id) == 0;
+  if (recolor_ids_.count(id) > 0) {
+    pixbuf = recolorPixbuf(pixbuf, show_badge);
+  }
+  if (has_custom_icon_ && show_badge) {
+    pixbuf = overlayBadge(pixbuf);
+  }
+
   auto surface =
       Gdk::Cairo::create_surface_from_pixbuf(pixbuf, image.get_scale_factor(), image.get_window());
   image.set(surface);
@@ -577,6 +602,95 @@ Glib::RefPtr<Gdk::Pixbuf> Item::getIconByName(const std::string& name, int reque
   return DefaultGtkIconThemeWrapper::load_icon(name.c_str(), request_size,
                                                Gtk::IconLookupFlags::ICON_LOOKUP_FORCE_SIZE,
                                                event_box.get_style_context());
+}
+
+// The unread badges tray icons paint into their pixmaps are strongly red.
+static bool isBadgePixel(const guint8* p) {
+  return p[3] > 0 && p[0] > 150 && p[0] > 1.6 * p[1] && p[0] > 1.6 * p[2];
+}
+
+// Paint every pixel in the text colour, keeping its alpha. Meant for apps that
+// only ship a single-colour tray icon (black or white, fixed at startup), so it
+// follows the bar's light/dark style. With keep_badge, strongly red pixels are
+// left alone: that is the unread badge or an error mark.
+Glib::RefPtr<Gdk::Pixbuf> Item::recolorPixbuf(const Glib::RefPtr<Gdk::Pixbuf>& src,
+                                              bool keep_badge) {
+  auto color = event_box.get_style_context()->get_color(Gtk::STATE_FLAG_NORMAL);
+  const auto fg_r = static_cast<guint8>(color.get_red() * 255);
+  const auto fg_g = static_cast<guint8>(color.get_green() * 255);
+  const auto fg_b = static_cast<guint8>(color.get_blue() * 255);
+
+  // add_alpha() always returns a copy, so the item's own pixmap stays intact
+  auto dst = src->add_alpha(false, 0, 0, 0);
+  const int width = dst->get_width();
+  const int height = dst->get_height();
+  const int rowstride = dst->get_rowstride();
+  guint8* pixels = dst->get_pixels();
+
+  for (int y = 0; y < height; ++y) {
+    guint8* p = pixels + y * rowstride;
+    for (int x = 0; x < width; ++x, p += 4) {
+      if (p[3] == 0 || (keep_badge && isBadgePixel(p))) continue;
+      p[0] = fg_r;
+      p[1] = fg_g;
+      p[2] = fg_b;
+    }
+  }
+  return dst;
+}
+
+// Put the unread badge of the app's own pixmap on top of a custom icon, which
+// has none. The badge is found as the strongly red pixels; a clean round dot
+// is drawn over their bounding box in the most saturated red among them. The
+// app's own shape does not survive scaling well (blended edges drop out, the
+// count shows through), and a plain dot looks the same for every app.
+Glib::RefPtr<Gdk::Pixbuf> Item::overlayBadge(const Glib::RefPtr<Gdk::Pixbuf>& icon) {
+  if (!app_icon_pixmap_ || !icon) return icon;
+  const int width = icon->get_width();
+  const int height = icon->get_height();
+  auto src = app_icon_pixmap_->add_alpha(false, 0, 0, 0);
+  if (src->get_width() != width || src->get_height() != height) {
+    src = src->scale_simple(width, height, Gdk::InterpType::INTERP_BILINEAR);
+  }
+
+  int x0 = width, y0 = height, x1 = -1, y1 = -1;
+  guint8 badge[3] = {0, 0, 0};
+  int best = -1;
+  for (int y = 0; y < height; ++y) {
+    const guint8* s = src->get_pixels() + y * src->get_rowstride();
+    for (int x = 0; x < width; ++x, s += 4) {
+      if (!isBadgePixel(s)) continue;
+      x0 = std::min(x0, x);
+      x1 = std::max(x1, x);
+      y0 = std::min(y0, y);
+      y1 = std::max(y1, y);
+      const int saturation = s[0] - std::max(s[1], s[2]);
+      if (saturation > best) {
+        best = saturation;
+        std::copy(s, s + 3, badge);
+      }
+    }
+  }
+  if (best < 0) return icon;
+
+  const double cx = (x0 + x1 + 1) / 2.0;
+  const double cy = (y0 + y1 + 1) / 2.0;
+  const double r = std::min(x1 - x0 + 1, y1 - y0 + 1) / 2.0;
+  auto dst = icon->add_alpha(false, 0, 0, 0);
+  for (int y = 0; y < height; ++y) {
+    guint8* d = dst->get_pixels() + y * dst->get_rowstride();
+    for (int x = 0; x < width; ++x, d += 4) {
+      // coverage of the pixel by the circle, one pixel of anti-aliasing
+      const double dist = std::hypot(x + 0.5 - cx, y + 0.5 - cy);
+      const double a = std::clamp(r - dist + 0.5, 0.0, 1.0);
+      if (a <= 0) continue;
+      for (int c = 0; c < 3; ++c) {
+        d[c] = static_cast<guint8>(a * badge[c] + (1 - a) * d[c]);
+      }
+      d[3] = static_cast<guint8>(std::max<double>(d[3], a * 255));
+    }
+  }
+  return dst;
 }
 
 double Item::getScaledIconSize() {

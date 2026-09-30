@@ -21,6 +21,14 @@ Addressed by *tray*
 	default: false ++
 	Defines visibility of the tray icons with *Passive* status.
 
+*recolor*: ++
+	typeof: array ++
+	Ids of tray items whose icon is painted in the text colour, keeping its alpha. Meant for apps that ship a single-colour icon whose colour does not follow the bar's style. Strongly red pixels (an unread badge) are kept.
+
+*hide-badges*: ++
+	typeof: array ++
+	Ids of tray items whose unread badge is not shown. Items with a custom icon from *icons* get the red badge of the app's own icon drawn on top as a dot; for items in this list that dot is left out, and *recolor* paints their red pixels too. Useful with a do-not-disturb mode.
+
 *smooth-scrolling-threshold*: ++
 	typeof: double ++
 	Threshold to be used when scrolling.

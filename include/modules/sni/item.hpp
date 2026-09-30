@@ -101,6 +101,8 @@ class Item : public sigc::trackable {
   static Glib::RefPtr<Gdk::Pixbuf> overlayPixbufs(const Glib::RefPtr<Gdk::Pixbuf>&,
                                                   const Glib::RefPtr<Gdk::Pixbuf>&);
   Glib::RefPtr<Gdk::Pixbuf> getIconByName(const std::string& name, int size);
+  Glib::RefPtr<Gdk::Pixbuf> recolorPixbuf(const Glib::RefPtr<Gdk::Pixbuf>& src, bool keep_badge);
+  Glib::RefPtr<Gdk::Pixbuf> overlayBadge(const Glib::RefPtr<Gdk::Pixbuf>& icon);
   double getScaledIconSize();
   static void onMenuDestroyed(Item* self, GObject* old_menu_pointer);
   void makeMenu();
@@ -116,6 +118,13 @@ class Item : public sigc::trackable {
   gdouble distance_scrolled_y_ = 0;
   // visibility of items with Status == Passive
   bool show_passive_ = false;
+  // item ids whose icons are painted in the text colour (config "recolor")
+  std::set<std::string> recolor_ids_;
+  // item ids whose unread badge is not shown (config "hide-badges")
+  std::set<std::string> hide_badge_ids_;
+  // the pixmap the app sent, kept even when a custom icon replaces it, so its
+  // unread badge can still be shown on top of the custom icon
+  Glib::RefPtr<Gdk::Pixbuf> app_icon_pixmap_;
   // hidden via config
   bool is_hidden_ = false;
   bool ready_ = false;
