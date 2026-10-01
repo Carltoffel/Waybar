@@ -644,12 +644,16 @@ Glib::RefPtr<Gdk::Pixbuf> Item::recolorPixbuf(const Glib::RefPtr<Gdk::Pixbuf>& s
   return dst;
 }
 
-// Put the unread badge of the app's own pixmap on top of a custom icon, which
-// has none. The badge is found as the strongly red pixels; a clean round dot
-// is drawn over their bounding box in the most saturated red among them. The
-// app's own shape does not survive scaling well (blended edges drop out, the
-// count shows through), and a plain dot looks the same for every app.
+// Put an unread dot on top of a custom icon, which has none of its own. The
+// app's pixmap only tells whether there is a badge (strongly red pixels);
+// the dot itself is always the same, so all apps look alike. Its size,
+// place and colour are those of ZapZap's badge.
 Glib::RefPtr<Gdk::Pixbuf> Item::overlayBadge(const Glib::RefPtr<Gdk::Pixbuf>& icon) {
+  static constexpr double BADGE_X = 0.80;  // centre, as a fraction of the icon
+  static constexpr double BADGE_Y = 0.73;
+  static constexpr double BADGE_DIAMETER = 0.41;
+  static constexpr guint8 BADGE_COLOUR[3] = {255, 0, 0};
+
   if (!app_icon_pixmap_ || !icon) return icon;
   const int width = icon->get_width();
   const int height = icon->get_height();
@@ -658,29 +662,19 @@ Glib::RefPtr<Gdk::Pixbuf> Item::overlayBadge(const Glib::RefPtr<Gdk::Pixbuf>& ic
     src = src->scale_simple(width, height, Gdk::InterpType::INTERP_BILINEAR);
   }
 
-  int x0 = width, y0 = height, x1 = -1, y1 = -1;
-  guint8 badge[3] = {0, 0, 0};
-  int best = -1;
+  // a few stray red pixels in an app's logo are not a badge
+  int red = 0;
   for (int y = 0; y < height; ++y) {
     const guint8* s = src->get_pixels() + y * src->get_rowstride();
     for (int x = 0; x < width; ++x, s += 4) {
-      if (!isBadgePixel(s)) continue;
-      x0 = std::min(x0, x);
-      x1 = std::max(x1, x);
-      y0 = std::min(y0, y);
-      y1 = std::max(y1, y);
-      const int saturation = s[0] - std::max(s[1], s[2]);
-      if (saturation > best) {
-        best = saturation;
-        std::copy(s, s + 3, badge);
-      }
+      if (isBadgePixel(s)) ++red;
     }
   }
-  if (best < 0) return icon;
+  if (red < std::max(4, width * height / 100)) return icon;
 
-  const double cx = (x0 + x1 + 1) / 2.0;
-  const double cy = (y0 + y1 + 1) / 2.0;
-  const double r = std::min(x1 - x0 + 1, y1 - y0 + 1) / 2.0;
+  const double cx = BADGE_X * width;
+  const double cy = BADGE_Y * height;
+  const double r = BADGE_DIAMETER * std::min(width, height) / 2;
   auto dst = icon->add_alpha(false, 0, 0, 0);
   for (int y = 0; y < height; ++y) {
     guint8* d = dst->get_pixels() + y * dst->get_rowstride();
@@ -690,7 +684,7 @@ Glib::RefPtr<Gdk::Pixbuf> Item::overlayBadge(const Glib::RefPtr<Gdk::Pixbuf>& ic
       const double a = std::clamp(r - dist + 0.5, 0.0, 1.0);
       if (a <= 0) continue;
       for (int c = 0; c < 3; ++c) {
-        d[c] = static_cast<guint8>(a * badge[c] + (1 - a) * d[c]);
+        d[c] = static_cast<guint8>(a * BADGE_COLOUR[c] + (1 - a) * d[c]);
       }
       d[3] = static_cast<guint8>(std::max<double>(d[3], a * 255));
     }
