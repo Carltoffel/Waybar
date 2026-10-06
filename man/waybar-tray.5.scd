@@ -21,6 +21,11 @@ Addressed by *tray*
 	default: false ++
 	Defines visibility of the tray icons with *Passive* status.
 
+*tooltip*: ++
+    typeof: bool ++
+    default: true ++
+    Option to disable tooltips on the tray icons.
+
 *smooth-scrolling-threshold*: ++
 	typeof: double ++
 	Threshold to be used when scrolling.
@@ -103,7 +108,8 @@ might not work for some Electron apps (see https://github.com/electron/electron/
 		"TelegramDesktop": "$HOME/.local/share/icons/hicolor/16x16/apps/telegram.png",
 		"spotify": false
 	},
-	"order": ["gammastep", "*", "TelegramDesktop", "nm-applet"]
+	"order": ["gammastep", "*", "TelegramDesktop", "nm-applet"],
+	"tooltip": false
 }
 
 ```
