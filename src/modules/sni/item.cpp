@@ -76,6 +76,9 @@ Item::Item(const std::string& bn, const std::string& op, const Json::Value& conf
       }
     }
   }
+  if (config["tooltip"].isBool()) {
+    show_tooltip_ = config["tooltip"].asBool();
+  }
 
   auto& window = const_cast<Bar&>(bar).window;
   window.signal_configure_event().connect_notify(sigc::mem_fun(*this, &Item::onConfigure));
@@ -238,7 +241,7 @@ void Item::setProperty(const Glib::ustring& name, Glib::VariantBase& value) {
     } else if (name == "Title") {
       title = get_variant<std::string>(value);
       if (tooltip.text.empty()) {
-        event_box.set_tooltip_markup(title);
+        setTooltipMarkup(title);
       }
     } else if (name == "Status") {
       setStatus(get_variant<Glib::ustring>(value));
@@ -268,7 +271,7 @@ void Item::setProperty(const Glib::ustring& name, Glib::VariantBase& value) {
     } else if (name == "ToolTip") {
       tooltip = get_variant<ToolTip>(value);
       if (!tooltip.text.empty()) {
-        event_box.set_tooltip_markup(tooltip.text);
+        setTooltipMarkup(tooltip.text);
       }
     } else if (name == "IconThemePath") {
       icon_theme_path = get_variant<std::string>(value);
@@ -307,6 +310,12 @@ void Item::setStatus(const Glib::ustring& value) {
   }
   style->add_class(css_class);
   on_updated_();
+}
+
+void Item::setTooltipMarkup(const Glib::ustring& markup) {
+  if (show_tooltip_) {
+    event_box.set_tooltip_markup(markup);
+  }
 }
 
 void Item::setReady() {

@@ -3,6 +3,7 @@
 #include <dbus-status-notifier-item.h>
 #include <giomm/dbusproxy.h>
 #include <glibmm/refptr.h>
+#include <glibmm/ustring.h>
 #include <gtkmm/eventbox.h>
 #include <gtkmm/icontheme.h>
 #include <gtkmm/image.h>
@@ -84,6 +85,7 @@ class Item : public sigc::trackable {
   void proxyReady(Glib::RefPtr<Gio::AsyncResult>& result);
   void setProperty(const Glib::ustring& name, Glib::VariantBase& value);
   void setStatus(const Glib::ustring& value);
+  void setTooltipMarkup(const Glib::ustring& markup);
   void setReady();
   void invalidate();
   void setCustomIcon(const std::string& id);
@@ -127,6 +129,7 @@ class Item : public sigc::trackable {
   // the pixmap the app sent, kept even when a custom icon replaces it, so its
   // unread badge can still be shown on top of the custom icon
   Glib::RefPtr<Gdk::Pixbuf> app_icon_pixmap_;
+  bool show_tooltip_ = true;
   // hidden via config
   bool is_hidden_ = false;
   bool ready_ = false;
