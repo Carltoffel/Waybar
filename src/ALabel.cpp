@@ -72,7 +72,7 @@ ALabel::ALabel(const Json::Value& config, const std::string& name, const std::st
       tooltip_requery_.disconnect();
       tooltip_requery_ = Glib::signal_idle().connect([this] {
         if (pointerOverModule()) {
-          gtk_tooltip_trigger_tooltip_query(label_.get_display()->gobj());
+          label_.trigger_tooltip_query();
         }
         return false;
       });
