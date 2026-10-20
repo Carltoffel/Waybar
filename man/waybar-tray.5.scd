@@ -33,6 +33,11 @@ Addressed by *tray*
 	typeof: array ++
 	Ids of tray items whose unread badge is not shown. Items with a custom icon from *icons* get the red badge of the app's own icon drawn on top as a dot; for items in this list that dot is left out, and *recolor* paints their red pixels too. Useful with a do-not-disturb mode.
 
+*tooltip*: ++
+    typeof: bool ++
+    default: true ++
+    Option to disable tooltips on the tray icons.
+
 *smooth-scrolling-threshold*: ++
 	typeof: double ++
 	Threshold to be used when scrolling.
@@ -115,7 +120,8 @@ might not work for some Electron apps (see https://github.com/electron/electron/
 		"TelegramDesktop": "$HOME/.local/share/icons/hicolor/16x16/apps/telegram.png",
 		"spotify": false
 	},
-	"order": ["gammastep", "*", "TelegramDesktop", "nm-applet"]
+	"order": ["gammastep", "*", "TelegramDesktop", "nm-applet"],
+	"tooltip": false
 }
 
 ```

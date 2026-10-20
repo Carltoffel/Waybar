@@ -76,6 +76,9 @@ Item::Item(const std::string& bn, const std::string& op, const Json::Value& conf
       }
     }
   }
+  if (config["tooltip"].isBool()) {
+    show_tooltip_ = config["tooltip"].asBool();
+  }
 
   auto& window = const_cast<Bar&>(bar).window;
   window.signal_configure_event().connect_notify(sigc::mem_fun(*this, &Item::onConfigure));
@@ -109,7 +112,13 @@ Item::~Item() {
   }
   if (this->dbus_menu != nullptr) {
     g_object_weak_unref(G_OBJECT(this->dbus_menu), (GWeakNotify)onMenuDestroyed, this);
+    // makeMenu() holds a reference (g_object_ref_sink), and a GtkMenu is a toplevel that GTK keeps
+    // in its window list. Without destroying it and dropping the reference, the menu and its whole
+    // dbusmenu tree outlive the item, e.g. for every tray item of a removed bar.
+    gtk_widget_destroy(GTK_WIDGET(this->dbus_menu));
+    g_object_unref(this->dbus_menu);
     this->dbus_menu = nullptr;
+    this->gtk_menu = nullptr;
   }
 }
 
@@ -238,7 +247,7 @@ void Item::setProperty(const Glib::ustring& name, Glib::VariantBase& value) {
     } else if (name == "Title") {
       title = get_variant<std::string>(value);
       if (tooltip.text.empty()) {
-        event_box.set_tooltip_markup(title);
+        setTooltipMarkup(title);
       }
     } else if (name == "Status") {
       setStatus(get_variant<Glib::ustring>(value));
@@ -268,7 +277,7 @@ void Item::setProperty(const Glib::ustring& name, Glib::VariantBase& value) {
     } else if (name == "ToolTip") {
       tooltip = get_variant<ToolTip>(value);
       if (!tooltip.text.empty()) {
-        event_box.set_tooltip_markup(tooltip.text);
+        setTooltipMarkup(tooltip.text);
       }
     } else if (name == "IconThemePath") {
       icon_theme_path = get_variant<std::string>(value);
@@ -307,6 +316,12 @@ void Item::setStatus(const Glib::ustring& value) {
   }
   style->add_class(css_class);
   on_updated_();
+}
+
+void Item::setTooltipMarkup(const Glib::ustring& markup) {
+  if (show_tooltip_) {
+    event_box.set_tooltip_markup(markup);
+  }
 }
 
 void Item::setReady() {
