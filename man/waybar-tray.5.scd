@@ -62,6 +62,7 @@ Addressed by *tray*
 *icons*: ++
 	typeof: object ++
 	Per-application icon customization. Keys are application IDs (e.g., "spotify", "blueman"). ++
+	A key containing *\** or *?* is a shell-style wildcard pattern matched against the whole ID, which suits apps whose ID changes on every launch (e.g., "dropbox-client-\*"). An exact key takes priority over a pattern. ++
 	Values can be: ++
 		- *string*: Custom icon name or path to icon file ++
 		- *false*: Hide this application's tray icon completely
@@ -118,7 +119,8 @@ might not work for some Electron apps (see https://github.com/electron/electron/
 	"icons": {
 		"blueman": "bluetooth",
 		"TelegramDesktop": "$HOME/.local/share/icons/hicolor/16x16/apps/telegram.png",
-		"spotify": false
+		"spotify": false,
+		"dropbox-client-*": "dropbox"
 	},
 	"order": ["gammastep", "*", "TelegramDesktop", "nm-applet"],
 	"tooltip": false
